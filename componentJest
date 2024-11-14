@@ -1,0 +1,1252 @@
+///BANKIST
+<script>
+import { LOGIN_BANKIST, STORE_LOGIN_BANKIST } from '@/common/recipe/rRegistrationForm'
+import { BUTTON_LOGIN_BANKERIST } from '@/common/recipe/rCommonButton'
+import { LABEL_BANKISTS, TIMER_BANKISTS } from '@/common/recipe/rCommonLabel'
+import CommonButton from '@/components/common/CommonButton.vue'
+import CommonLabel from '@/components/common/CommonLabel.vue'
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import { BANKISTS_ACCOUNT } from '@/common/recipe/rAccounts'
+
+export default {
+  name: 'Bankist',
+  components: { CommonTextInput, CommonButton, CommonLabel },
+  data() {
+    return {
+      INPUT_LOGIN: LOGIN_BANKIST,
+      STORE_LOGIN: STORE_LOGIN_BANKIST,
+      BUTTON_LOGIN: BUTTON_LOGIN_BANKERIST,
+      CURRENT_BALANCE: LABEL_BANKISTS,
+      LOGOUT_TIMER: TIMER_BANKISTS,
+      accounts: [...BANKISTS_ACCOUNT],
+      currentAccount: null,
+      loginUsername: '',
+      loginPin: '',
+      isLoggedIn: false,
+      displayedMovements: [],
+      timer: null,
+      timerDuration: 300,
+      transferTo: '',
+      transferAmount: '',
+      loanAmount: '',
+      closeUsername: '',
+      closePin: '',
+      sorted: false,
+      depositCount: 0,
+      withdrawalCount: 0
+    }
+  },
+  computed: {
+    /**
+     * Display message for login
+     * @return {string} message
+     */
+    welcomeMessage() {
+      return this.isLoggedIn
+        ? `Welcome back ${this.currentAccount.owner.split(' ')[0]}!`
+        : 'Log in to get started'
+    },
+    /**
+     * Display balance of current user
+     * @return {number} currency balance
+     */
+    displayBalance() {
+      return this.formatCurrency(this.calculateBalance())
+    },
+    /**
+     * Display total income of current user
+     * @return {number} currency income
+     */
+    displayIncome() {
+      return this.formatCurrency(this.calculateSummary('incomes'))
+    },
+    /**
+     * Display total outgoing of current user
+     * @return {number} currency outgoings
+     */
+    displayOutgoings() {
+      return this.formatCurrency(this.calculateSummary('outgoings'))
+    },
+    /**
+     * Display total interest of current user
+     * @return {number} interest
+     */
+    displayInterest() {
+      return this.formatCurrency(this.calculateInterest())
+    },
+    /**
+     * Display realtime date
+     * @return {date} realtime date
+     */
+    displayDate() {
+      return new Date().toLocaleDateString()
+    },
+    /**
+     * Display realtime time
+     * @return {time} time
+     */
+    displayTime() {
+      return new Date().toLocaleString([], { hour: '2-digit', minute: '2-digit' })
+    },
+    /**
+     * Display maximum time before user automatically logout
+     * @return {time} logout time
+     */
+    logoutTimer() {
+      const minutes = String(Math.floor(this.timerDuration / 60)).padStart(2, '0')
+      const seconds = String(this.timerDuration % 60).padStart(2, '0')
+      return `${minutes}:${seconds}`
+    },
+    /**
+     * The username of users
+     */
+    created() {
+      this.createUserName(this.accounts)
+    }
+  },
+  methods: {
+    /**
+     * Find user from list
+     */
+    createUserNames() {
+      this.accounts.forEach((acc) => {
+        acc.username = acc.owner
+          .toLowerCase()
+          .split(' ')
+          .map((name) => name[0])
+          .join('')
+      })
+    },
+    /**
+     * Handle login and the information of user
+     */
+    login() {
+      this.createUserNames()
+      this.currentAccount = this.accounts.find(
+        (acc) =>
+          acc.username === this.loginUsername.trim().toLowerCase() &&
+          acc.pin === Number(this.loginPin)
+      )
+      if (this.currentAccount) {
+        this.displayedMovements = this.currentAccount.movements
+          .map((mov, i) => ({
+            amount: mov,
+            date: this.currentAccount.movementsDates[i]
+          }))
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+        this.isLoggedIn = true
+        this.startLogoutTimer()
+      } else {
+        alert('Invalid Login')
+      }
+      this.loginUsername = ''
+      this.loginPin = ''
+    },
+    /**
+     * Calculate the balance of all movements
+     * @return {string} current account
+     */
+    calculateBalance() {
+      return this.currentAccount
+        ? this.currentAccount.movements.reduce((acc, mov) => acc + mov, 0)
+        : 0
+    },
+    /**
+     * Calculate the incomes and outgoings of all movements
+     * @return {number} zero
+     * @return {number} incomes
+     * @return {number} outgoings
+     */
+    calculateSummary(type) {
+      if (!this.currentAccount) return 0
+      if (type === 'incomes') {
+        return this.currentAccount.movements
+          .filter((mov) => mov > 0)
+          .reduce((acc, mov) => acc + mov, 0)
+      } else if (type === 'outgoings') {
+        return Math.abs(
+          this.currentAccount.movements.filter((mov) => mov < 0).reduce((acc, mov) => acc + mov, 0)
+        )
+      }
+    },
+    /**
+     * Calculate the interest of all movements
+     * @return {number} interests
+     */
+    calculateInterest() {
+      if (!this.currentAccount) return 0
+      return this.currentAccount.movements
+        .filter((mov) => mov > 0)
+        .map((deposit) => (deposit * this.currentAccount.interestRate) / 100)
+        .filter((int) => int >= 1)
+        .reduce((acc, int) => acc + int, 0)
+    },
+    /**
+     * Format the currency
+     * @return {number} currency
+     */
+    formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: this.currentAccount.currency,
+        trailingZeroDisplay: 'stripIfInteger'
+      }).format(value)
+    },
+    /**
+     * Format movement date
+     * @param {date} date The movement date
+     * @return {date} movement date
+     */
+    formatMovementDate(date) {
+      const targetDate = new Date(date)
+      const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+      const day = String(targetDate.getDate()).padStart(2, '0')
+      const year = targetDate.getFullYear()
+      return `${month}/${day}/${year}`
+    },
+
+    /**
+     * Manage the transfer process from current user to recipient
+     */
+    transfer() {
+      const amount = Number(this.transferAmount)
+      const receiverAcc = this.accounts.find((acc) => acc.username === this.transferTo)
+      this.transferAmount = ''
+      this.transferTo = ''
+      if (amount <= 0) {
+        alert('Transfer failed: Amount must be greater than zero.')
+      }
+      if (!receiverAcc) {
+        alert('Transfer failed: Recipient not found.')
+      }
+      if (receiverAcc.username === this.currentAccount.username) {
+        alert('Transfer failed: You cannot transfer to your own account.')
+      }
+      if (this.calculateBalance() < amount) {
+        alert('Transfer failed: Insufficient balance.')
+      }
+
+      if (
+        amount > 0 &&
+        receiverAcc &&
+        this.calculateBalance() >= amount &&
+        receiverAcc.username !== this.currentAccount.username
+      ) {
+        this.currentAccount.movements.unshift(-amount)
+        receiverAcc.movements.unshift(amount)
+
+        const currentDate = new Date().toISOString()
+        this.currentAccount.movementsDates.unshift(currentDate)
+        receiverAcc.movementsDates.unshift(currentDate)
+
+        this.withdrawalCount++
+        this.depositCount++
+
+        this.updateMovements()
+        alert(`Transfer of ${this.formatCurrency(amount)} to ${receiverAcc.owner} was successful.`)
+      }
+    },
+    /**
+     * Manage loan requests
+     */
+    requestLoan() {
+      const amount = Number(this.loanAmount)
+
+      if (amount <= 0) alert('Invalid loan amount.')
+      if (!this.currentAccount.movements.some((mov) => mov >= amount * 0.1))
+        alert('Loan request denied')
+
+      if (amount > 0 && this.currentAccount.movements.some((mov) => mov >= amount * 0.1)) {
+        setTimeout(() => {
+          this.currentAccount.movements.unshift(amount)
+          this.currentAccount.movementsDates.unshift(new Date().toISOString())
+          this.updateMovements()
+        }, 1000)
+        alert('Loan request accepted')
+      }
+      this.loanAmount = ''
+    },
+    /**
+     * Sort and unsort order of
+     * @return {array} movements
+     */
+    sortMovements() {
+      if (!this.isLoggedIn) return
+      if (!this.sorted) {
+        this.displayedMovements.sort((a, b) => b.amount - a.amount)
+      } else {
+        this.displayedMovements.sort((a, b) => new Date(b.date) - new Date(a.date))
+      }
+      this.sorted = !this.sorted
+    },
+    /**
+     * Update the values of movements
+     */
+    updateMovements() {
+      this.displayedMovements = this.currentAccount.movements.map((amount, i) => ({
+        amount,
+        date: this.currentAccount.movementsDates[i]
+      }))
+    },
+    /**
+     * Duration before user automatically logout
+     */
+    startLogoutTimer() {
+      clearInterval(this.timer)
+      this.timerDuration = 300
+      this.timer = setInterval(() => {
+        if (this.timerDuration === 0) {
+          clearInterval(this.timer)
+          this.isLoggedIn = false
+        } else {
+          this.timerDuration--
+        }
+      }, 1000)
+    },
+    /**
+     * Logout the user and close the account permanently
+     */
+    closeAccount() {
+      const closeAcc = confirm('Close your account?')
+      if (closeAcc) {
+        if (this.closeUsername !== this.currentAccount.username) {
+          alert('Invalid. You can only close our own account')
+        }
+        if (Number(this.closePin) !== this.currentAccount.pin) {
+          alert('Invalid. Wrong Pin')
+        }
+        if (
+          this.closeUsername === this.currentAccount.username &&
+          Number(this.closePin) === this.currentAccount.pin
+        ) {
+          const index = this.accounts.findIndex(
+            (acc) => acc.username === this.currentAccount.username
+          )
+          this.accounts.splice(index, 1)
+          this.isLoggedIn = false
+          alert('Account closed')
+        }
+        this.closeUsername = ''
+        this.closePin = ''
+      }
+    },
+    /**
+     * Logout the user and close the account permanently
+     */
+    logoutAccount() {
+      const logoutAcc = confirm('Logout your Account?')
+      if (logoutAcc) {
+        this.currentAccount = null
+        this.startLogoutTimer()
+        this.isLoggedIn = false
+        this.loginUsername = ''
+        this.loginPin = ''
+      }
+    }
+  }
+}
+</script>
+
+
+///BMI
+
+
+<script>
+import { HEADER_BMI } from '@/common/recipe/rCommonHeader'
+import { FORM_BMI, BMI_OUTPUT, BMI_CONSTANT } from '@/common/recipe/rRegistrationForm.js'
+import { BUTTON_BMI } from '@/common/recipe/rCommonButton.js'
+import { BMI_LABEL } from '@/common/recipe/rTwinOutput'
+import CommonHeader from '../../common/CommonHeader.vue'
+import CommonLabel from '@/components/common/CommonLabel.vue'
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import CommonButton from '@/components/common/CommonButton.vue'
+
+export default {
+  name: 'BmiConverter',
+  components: { CommonHeader, CommonLabel, CommonTextInput, CommonButton },
+  data() {
+    return {
+      HEADER_CONVERT: HEADER_BMI,
+      FORM_CONVERT: FORM_BMI,
+      BUTTON_CONVERT: BUTTON_BMI,
+      OUTPUT_CONVERT: BMI_OUTPUT,
+      CONSTANT_CONVERT: BMI_CONSTANT,
+      LABEL_CONVERT: BMI_LABEL,
+      showCompare: false,
+      isError: false,
+      resultBmi: ''
+    }
+  },
+  methods: {
+    /**
+     * Validates form depending on Action.
+     * @param {String} action - The action of when a button is click.
+     */
+    getButtonAction(action) {
+      this.isError = false
+      for (const [key, value] of Object.entries(this.OUTPUT_CONVERT)) {
+        if (!value.BmiName || !value.BmiHeight || !value.BmiWeight) {
+          this.isError = true
+          break
+        }
+      }
+      const checkError =
+        this.OUTPUT_CONVERT.personOne.BmiHeight <= 0 ||
+        this.OUTPUT_CONVERT.personTwo.BmiHeight <= 0 ||
+        this.OUTPUT_CONVERT.personOne.BmiWeight <= 0 ||
+        this.OUTPUT_CONVERT.personTwo.BmiWeight <= 0
+      const noBmi = this.OUTPUT_CONVERT.personTwo.bmi || this.OUTPUT_CONVERT.personTwo.bmi
+      const formPattern = /^[a-zA-ZäöüÄÖÜ]*$/
+
+      if (checkError && action === 'compute') {
+        alert(`Invalid Zero or Negative Input`)
+      } else if (this.isError && action === 'compute') {
+        alert(`Invalid Empty Input`)
+      } else if (
+        !formPattern.test(
+          this.OUTPUT_CONVERT.personOne.BmiName ||
+            !formPattern.test(this.OUTPUT_CONVERT.personTwo.weight)
+        )
+      ) {
+        alert(`Invalid Character Input`)
+      } else if (this.isError && action === 'compare') {
+        alert(`Click Compute`)
+      } else if (action === 'compute') {
+        this.bmiCompute()
+      } else if (action === 'compare') {
+        if (noBmi === '') {
+          alert(`Click Compute`)
+        } else {
+          this.bmiCompare()
+          this.addDataConstant()
+          alert(`Kindly Compute Again if you want to modified Input`)
+        }
+      }
+    },
+    /**
+     * Get the data from the input form.
+     * @param {Number} data - The data from the form.
+     * @param {Array} inputConvert - The array of inputs.
+     */
+    addBmiData(data, inputConvert) {
+      if (inputConvert === 1) this.OUTPUT_CONVERT.personOne[data.key] = data.value
+      if (inputConvert === 2) this.OUTPUT_CONVERT.personTwo[data.key] = data.value
+    },
+    addDataConstant() {
+      this.CONSTANT_CONVERT.constantOne.constantName = this.OUTPUT_CONVERT.personOne.BmiName
+      this.CONSTANT_CONVERT.constantOne.constantBmi = this.OUTPUT_CONVERT.personOne.bmi
+      this.CONSTANT_CONVERT.constantOne.constantClass = this.OUTPUT_CONVERT.personOne.bmiClass
+
+      this.CONSTANT_CONVERT.constantTwo.constantName = this.OUTPUT_CONVERT.personTwo.BmiName
+      this.CONSTANT_CONVERT.constantTwo.constantBmi = this.OUTPUT_CONVERT.personTwo.bmi
+      this.CONSTANT_CONVERT.constantTwo.constantClass = this.OUTPUT_CONVERT.personTwo.bmiClass
+    },
+    /**
+     * Compute and display the result to the console.
+     */
+    bmiCompute() {
+      this.getBmi()
+      this.getClassification()
+      alert('BMI computed. Click Compare to proceed.')
+      console.log(this.OUTPUT_CONVERT)
+      this.showCompare = false
+      this.isError = false
+    },
+    /**
+     * Compare the BMI and provide text to be displayed in the alert.
+     */
+    bmiCompare() {
+      this.showCompare = true
+      if (this.OUTPUT_CONVERT.personOne.bmi > this.OUTPUT_CONVERT.personTwo.bmi) {
+        this.resultBmi = `${this.OUTPUT_CONVERT.personOne.BmiName} has greater than BMI: ${this.OUTPUT_CONVERT.personOne.bmi}`
+      } else if (this.OUTPUT_CONVERT.personTwo.bmi > this.OUTPUT_CONVERT.personOne.bmi) {
+        this.resultBmi = `${this.OUTPUT_CONVERT.personTwo.BmiName} has greater than BMI: ${this.OUTPUT_CONVERT.personTwo.bmi}`
+      } else {
+        this.resultBmi = `Both have equal BMI: ${this.OUTPUT_CONVERT.personTwo.bmi}`
+      }
+      this.isError = false
+    },
+    /**
+     * Calculate the BMI of each person.
+     */
+    getBmi() {
+      let bmiOne =
+        this.OUTPUT_CONVERT.personOne.BmiWeight /
+        Math.pow(this.OUTPUT_CONVERT.personOne.BmiHeight / 100, 2)
+      this.OUTPUT_CONVERT.personOne.bmi = Math.round(bmiOne).toFixed(2)
+
+      let bmiTwo =
+        this.OUTPUT_CONVERT.personTwo.BmiWeight /
+        Math.pow(this.OUTPUT_CONVERT.personTwo.BmiHeight / 100, 2)
+      this.OUTPUT_CONVERT.personTwo.bmi = Math.round(bmiTwo).toFixed(2)
+    },
+    /**
+     * Classify the BMI result
+     */
+    getClassification() {
+      const resultOne = this.OUTPUT_CONVERT.personOne.bmi
+      var classOne = ''
+      if (resultOne < 18.5) {
+        classOne = 'Underweight'
+      } else if (resultOne < 25) {
+        classOne = 'Normal'
+      } else if (resultOne < 30) {
+        classOne = 'Overweight'
+      } else {
+        classOne = 'Obese'
+      }
+
+      const resultTwo = this.OUTPUT_CONVERT.personTwo.bmi
+      var classTwo = ''
+      if (resultTwo < 18.5) {
+        classTwo = 'Underweight'
+      } else if (resultTwo < 25) {
+        classTwo = 'Normal'
+      } else if (resultOne < 30) {
+        classTwo = 'Overweight'
+      } else {
+        classTwo = 'Obese'
+      }
+
+      this.OUTPUT_CONVERT.personOne.bmiClass = classOne
+      this.OUTPUT_CONVERT.personTwo.bmiClass = classTwo
+    }
+  }
+}
+</script>
+
+
+
+///MAPTY
+
+
+
+<script>
+import L from 'leaflet'
+import { Workout } from '@/common/recipe/maptyClass'
+export default {
+  name: 'Mapty',
+  data() {
+    return {
+      map: null,
+      mapZoomLevel: 13,
+      mapEvent: null,
+      workouts: [],
+      isFormHidden: false,
+      distance: '',
+      duration: '',
+      cadence: '',
+      elevation: '',
+      toggleElevation: false,
+      workoutSelected: null,
+      options: [
+        { value: null, text: 'Workout', disabled: true },
+        { value: 'running', text: 'Running' },
+        { value: 'cycling', text: 'Cycling' }
+      ]
+    }
+  },
+  mounted() {
+    this.getPosition()
+  },
+  methods: {
+    /**
+     * Get location
+     */
+    getPosition() {
+      if (navigator.geolocation)
+        navigator.geolocation.getCurrentPosition(this.loadMap.bind(this), function () {
+          alert('Could not get your position')
+        })
+    },
+    /**
+     * Get coordinates
+     * @param {number} position The position coordinate
+     */
+    loadMap(position) {
+      const { latitude } = position.coords
+      const { longitude } = position.coords
+      const coords = [latitude, longitude]
+
+      this.map = L.map('map').setView(coords, this.mapZoomLevel)
+
+      L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(this.map)
+
+      this.map.on('click', this.showForm)
+
+      this.workouts.forEach((work) => {
+        this.renderWorkoutMarker(work)
+      })
+    },
+    /**
+     * Map event
+     * @param {number} mapE The map event
+     */
+    showForm(mapE) {
+      this.mapEvent = mapE
+      this.isFormHidden = true
+    },
+    /**
+     * Hide the form
+     */
+    hideForm() {
+      this.isFormHidden = false
+      this.resetForm()
+    },
+    /**
+     * Reset form inputs
+     */
+    resetForm() {
+      this.distance = 0
+      this.duration = 0
+      this.cadence = 0
+      this.elevation = 0
+    },
+    /**
+     * Display text input depending on workout
+     * @returns {boolean} Toggle elevation status
+     */
+    getType() {
+      return this.workoutSelected === 'running'
+        ? (this.toggleElevation = false)
+        : (this.toggleElevation = true)
+    },
+    /**
+     * Validate input and output process
+     * @returns {String} Alert message
+     */
+    newWorkout() {
+      const validInputs = (...inputs) => inputs.every((inp) => Number.isFinite(inp))
+      const allPositive = (...inputs) => inputs.every((inp) => inp > 0)
+
+      const type = this.workoutSelected
+      const distance = +this.distance
+      const duration = +this.duration
+      const { lat, lng } = this.mapEvent.latlng
+      let workout
+
+      if (type === 'running') {
+        const cadence = +this.cadence
+        if (!validInputs(distance, duration, cadence) || !allPositive(distance, duration, cadence))
+          return alert('Inputs have to be positive numbers!')
+        workout = new Workout([lat, lng], distance, duration, cadence, 'running')
+      }
+
+      if (type === 'cycling') {
+        const elevation = +this.elevation
+        if (!validInputs(distance, duration, elevation) || !allPositive(distance, duration))
+          return alert('Inputs have to be positive numbers!')
+        workout = new Workout([lat, lng], distance, duration, elevation, 'cycling')
+      }
+
+      this.renderWorkoutMarker(workout)
+      this.renderWorkout(workout)
+      this.hideForm()
+      this.setLocalStorage()
+    },
+    /**
+     * Displayicon depending on workout
+     * @param {string} workout The type of workout
+     */
+    renderWorkoutMarker(workout) {
+      L.marker(workout.coords)
+        .addTo(this.map)
+        .bindPopup(
+          L.popup({
+            maxWidth: 250,
+            minWidth: 100,
+            autoClose: false,
+            closeOnClick: false,
+            className: `${workout.type}-popup`
+          })
+        )
+        .setPopupContent(`${workout.type === 'running' ? '🏃‍♂️' : '🚴‍♀️'} ${workout.description}`)
+        .openPopup()
+    },
+    /**
+     * Push workout type
+     * @param {string} workout The workout type
+     */
+    renderWorkout(workout) {
+      this.workouts.push(workout)
+    },
+    /**
+     * Zoom the map
+     */
+    moveToPopup(workout) {
+      if (!this.map) return
+      this.map.setView(workout.coords, this.mapZoomLevel, {
+        animate: true,
+        pan: { duration: 1 }
+      })
+      workout.click()
+    },
+    /**
+     * Set input to local storage
+     */
+    setLocalStorage() {
+      localStorage.setItem('workouts', JSON.stringify(this.workouts))
+    },
+    /**
+     * Access local storage
+     */
+    getLocalStorage() {
+      const data = JSON.parse(localStorage.getItem('workouts'))
+      if (!data) return
+
+      this.workouts = data.map(
+        (work) =>
+          new Workout(
+            work.coords,
+            work.distance,
+            work.duration,
+            work.type === 'running' ? work.cadence : work.elevation,
+            work.type
+          )
+      )
+      this.workouts.forEach((work) => {
+        this.renderWorkoutMarker(work)
+      })
+    },
+    /**
+     * Reset local storage and location
+     */
+    reset() {
+      localStorage.removeItem('workouts')
+      location.reload()
+    }
+  }
+}
+</script>
+
+
+
+///MONSTER SLAYER
+
+
+
+<script>
+/**
+ * Generates a random number within the minimum and maximum value.
+ * @param {number} min - The minimum value.
+ * @param {number} max - The maximum value.
+ * @return {number} The rounded random number from the minimum and maximum values.
+ */
+function getRandomValue(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min
+}
+
+export default {
+  name: 'MonsterSlayer',
+  /**
+   * Set the values of the variables playerHealth, monsterHealth, currentRound, winner, and logMessages.
+   */
+  data() {
+    return {
+      playerHealth: 100,
+      monsterHealth: 100,
+      currentRound: 0,
+      winner: null,
+      logMessages: []
+    }
+  },
+  computed: {
+    /**
+     * Display the width percentage of the monsterHealth value.
+     * @return {number} The width of the monsterHealth value.
+     */
+    monsterBarStyles() {
+      if (this.monsterHealth < 0) {
+        return { width: '0%' }
+      }
+      return { width: this.monsterHealth + '%' }
+    },
+    /**
+     * Display the width percentage of the playerHealth value.
+     * @return {number} The width of the playerHealth value.
+     */
+    playerBarStyles() {
+      if (this.playerHealth < 0) {
+        return { width: '0%' }
+      }
+      return { width: this.playerHealth + '%' }
+    },
+    /**
+     * Evaluates currentRound value and return a boolean value.
+     * @return {number} The evaluation of currentRound remainder to zero.
+     */
+    mayUseSpecialAttack() {
+      return this.currentRound % 3 !== 0
+    }
+  },
+  watch: {
+    /**
+     * Evalates whether the monster wins or if its a draw.
+     * @param {number} value - The value of the monsterHealth.
+     */
+    playerHealth(value) {
+      if (value <= 0 && this.monsterHealth <= 0) {
+        this.winner = 'draw'
+      } else if (value <= 0) {
+        this.winner = 'monster'
+        document.getElementById('player-img').src = '../src/assets/cats-img/n-cat.jpg'
+      }
+    },
+    /**
+     * Evaluates whether the player wins or if its a draw.
+     * @param {number} value - The value of the playerHealth.
+     */
+    monsterHealth(value) {
+      if (value <= 0 && this.playerHealth <= 0) {
+        this.winner = 'draw'
+      } else if (value <= 0) {
+        this.winner = 'player'
+        document.getElementById('player-img').src = '../src/assets/cats-img/h-cat.jpg'
+      }
+    }
+  },
+  methods: {
+    /**
+     * Sets the value of each data at the start of the game.
+     */
+    startGame() {
+      this.playerHealth = 100
+      this.monsterHealth = 100
+      this.winner = null
+      this.currentRound = 0
+      this.logMessages = []
+      document.getElementById('player-img').src = '../src/assets/cats-img/d-cat.jpg'
+    },
+    /**
+     * Dereases the monsterHealth value based on the random value.
+     */
+    attackMonster() {
+      this.currentRound++
+      const attackValue = getRandomValue(5, 12)
+      this.monsterHealth = Math.max(this.monsterHealth - attackValue, 0)
+      this.addLogMessage('player', 'attack', attackValue)
+      this.attackPlayer()
+    },
+    /**
+     * Dereases the playerHealth value based on the random value.
+     */
+    attackPlayer() {
+      const attackValue = getRandomValue(8, 15)
+      this.playerHealth = Math.max(this.playerHealth - attackValue, 0)
+      this.addLogMessage('monster', 'attack', attackValue)
+    },
+    /**
+     * Significantly decreases the monsterHealth value based on the random value.
+     */
+    specialAttackMonster() {
+      this.currentRound++
+      const attackValue = getRandomValue(10, 25)
+      this.monsterHealth = Math.max(this.monsterHealth - attackValue, 0)
+      this.addLogMessage('player', 'attack', attackValue)
+      this.attackPlayer()
+    },
+    /**
+     * Increases the playerHealth value based on the random value.
+     */
+    healPlayer() {
+      this.currentRound++
+      const healValue = getRandomValue(8, 20)
+      if (this.playerHealth + healValue > 100) {
+        this.playerHealth = 100
+      } else {
+        this.playerHealth += healValue
+      }
+      this.addLogMessage('player', 'heal', healValue)
+      this.attackPlayer()
+    },
+    /**
+     * Assess and modified the game display if the player surrenders.
+     */
+    surrender() {
+      const willSurrender = window.confirm('Are you sure you want to surrender?')
+      if (willSurrender) {
+        this.winner = 'monster'
+        document.getElementById('player-img').src = '../src/assets/cats-img/n-cat.jpg'
+      }
+    },
+    /**
+     * Display different values for the battle log.
+     * @param {string} who - The doer of the action.
+     * @param {string} what - The action when the button is clicked.
+     * @param {number} value - The value of attack or heal.
+     */
+    addLogMessage(who, what, value) {
+      this.logMessages.unshift({
+        actionBy: who,
+        actionType: what,
+        actionValue: value
+      })
+    }
+  }
+}
+</script>
+
+
+
+TODO
+
+
+
+<script>
+import { HEADER_CHECKMATE } from '@/common/recipe/rCommonHeader'
+import { INPUT_CHECKMATE, CHECKLIST_OUTPUT } from '@/common/recipe/rRegistrationForm'
+import { BUTTON_CHECKMATE, BUTTON_CRUD_CHECKMATE } from '@/common/recipe/rCommonButton'
+import CommonHeader from '@/components/common/CommonHeader.vue'
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import CommonButton from '../../common/CommonButton.vue'
+
+export default {
+  name: 'CheckMate',
+  components: { CommonHeader, CommonTextInput, CommonButton },
+  data() {
+    return {
+      HEADER_LIST: HEADER_CHECKMATE,
+      FORM_LIST: CHECKLIST_OUTPUT,
+      INPUT_LIST: INPUT_CHECKMATE,
+      BUTTON_ADD: BUTTON_CHECKMATE,
+      BUTTON_CRUD: BUTTON_CRUD_CHECKMATE,
+      arrayChecklist: [],
+      resetkey: 0,
+      isEmpty: false
+    }
+  },
+  methods: {
+    /**
+     * Store the inputs from the form
+     * @param {string} details - The data from inputs
+     */
+    addDataCheck(details) {
+      this.FORM_LIST.listName = details.value.trim()
+    },
+    /**
+     * Call action depending on the button click
+     * @param {string} action - The event to be done by each button
+     */
+    getCrudAction(action) {
+      if (action === 'addCheck') this.addCheckmate()
+      if (action === 'frequent') this.modalWindow()
+      if (action === 'clearCompleted') this.clearChecked()
+      if (action === 'clearAll') this.clearAll()
+    },
+    /**
+     * Validates input if its is empty and push data input to an array
+     */
+    addCheckmate() {
+      if (this.FORM_LIST.listName === '') {
+        alert(`invalid empty`)
+      } else {
+        this.arrayChecklist.push({
+          ...JSON.parse(JSON.stringify(this.FORM_LIST))
+        })
+        this.FORM_LIST.listName = ''
+        this.resetkey += 1
+      }
+    },
+    /**
+     * Display modal window
+     */
+    modalWindow() {
+      this.$refs['my-modal'].show()
+    },
+    /**
+     * Clear all checked items from list
+     */
+    clearChecked() {
+      const completedTask = this.arrayChecklist.filter((task) => task.isCheck)
+      if (completedTask <= 0) {
+        alert(`There is no completed list.`)
+      } else {
+        const confirmDel = confirm('Are you sure?')
+        if (confirmDel) this.arrayChecklist = this.arrayChecklist.filter((task) => !task.isCheck)
+      }
+    },
+    /**
+     * Clear all items from list
+     */
+    clearAll() {
+      if (this.arrayChecklist.length <= 0) {
+        alert(`There is nothing to be Cleared.`)
+      } else {
+        const confirmDel = confirm('Are you sure?')
+        if (confirmDel) {
+          while (this.arrayChecklist.length > 0) {
+            this.arrayChecklist.pop()
+          }
+        }
+      }
+    },
+    /**
+     * Marked the list as checked
+     */
+    toggleCheck(details) {
+      this.arrayChecklist[details].isCheck = !this.arrayChecklist[details].isCheck
+    },
+    /**
+     * Delete an item from list
+     */
+    toggleDelete(data) {
+      const confirmDel = confirm('Are you sure?')
+      if (confirmDel) this.arrayChecklist.splice(data, 1)
+    },
+    listStyle(check) {
+      return {
+        'background-color': check.isCheck ? '#EAECEF' : 'white'
+      }
+    },
+    textStyle(check) {
+      return {
+        'text-decoration': check.isCheck ? 'line-through' : 'none'
+      }
+    }
+  }
+}
+</script>
+
+
+
+///APP
+
+
+
+<script>
+import HomeView from './components/pages/HomeView.vue'
+export default {
+  name: 'App',
+  components: {
+    HomeView
+  },
+  data() {
+    return {
+      username: '',
+      password: '',
+      currentPassword: '',
+      oldPassword: '',
+      newUsername: '',
+      newPassword: '',
+      isRegistering: false,
+      isLoggedIn: false,
+      registeredUsers: {},
+      loggedInUser: null,
+      showUsernameUpdateForm: false,
+      showPasswordChangeForm: false,
+      showUserAccount: true
+    }
+  },
+  mounted() {
+    if (!this.isLoggedIn) {
+      this.$router.push({ name: 'home' })
+    }
+  },
+  methods: {
+    /**
+     * Close update forms when moving to other page
+     */
+    changeTab() {
+      this.showUsernameUpdateForm = false
+      this.showPasswordChangeForm = false
+      this.showUserAccount = false
+      this.resetPassForm()
+      this.resetUserForm()
+    },
+    /**
+     * Display update username form
+     */
+    displayUsernameForm() {
+      this.showUsernameUpdateForm = !this.showUsernameUpdateForm
+      this.showPasswordChangeForm = false
+    },
+    /**
+     * Display update password form
+     */
+    displayPassForm() {
+      this.showPasswordChangeForm = !this.showPasswordChangeForm
+      this.showUsernameUpdateForm = false
+    },
+    /**
+     * Changes header display to make it responsive.
+     */
+    responsiveBtn() {
+      var btn = document.getElementById('topHeader')
+      if (btn.className === 'header') {
+        btn.className += ' responsive'
+      } else {
+        btn.className = 'header'
+      }
+    },
+    /**
+     * Show Login form
+     */
+    toggleForm() {
+      this.isRegistering = !this.isRegistering
+      this.resetForm()
+      this.resetNewForm()
+    },
+    /**
+     * Process the Login of user
+     */
+    login() {
+      if (!this.registeredUsers[this.username]) {
+        alert('Error. Username does not exist. Please register first.')
+        this.resetForm()
+        return
+      }
+
+      if (!this.registeredUsers[this.password]) {
+        alert('Error. Incorrect password. Please try again.')
+        this.resetForm()
+        return
+      }
+      this.isLoggedIn = true
+      this.loggedInUser = {
+        username: this.username,
+        password: this.password
+      }
+
+      this.showUsernameUpdateForm = false
+      this.showPasswordChangeForm = false
+      this.$router.push({ name: 'home' })
+    },
+    /**
+     * Process the Registration of user
+     */
+    register() {
+      if (this.registeredUsers[this.username]) {
+        alert('Error. Username already exists. Please choose a different one.')
+        this.resetForm()
+        return
+      }
+
+      const regex = /\s/
+      if (regex.test(this.username) || regex.test(this.password)) {
+        alert('Error. Invalid empty space.')
+        this.resetForm()
+        return
+      }
+
+      if (this.username === this.password) {
+        alert('Error. Username and password must not be the same.')
+        this.resetForm()
+        return
+      }
+
+      this.registeredUsers[this.username] = this.username
+      this.registeredUsers[this.password] = this.password
+      alert('Success. Registration successful! You can now log in.')
+      this.toggleForm()
+    },
+    /**
+     * Change the password of current user
+     */
+    changePassword() {
+      if (this.oldPassword !== this.password) {
+        alert('Error. Old password is incorrect. Please try again.')
+        this.resetPassForm()
+        return
+      }
+      const regex = /\s/
+      if (regex.test(this.newPassword)) {
+        alert('Error. Invalid empty space.')
+        this.resetPassForm()
+        return
+      }
+
+      this.registeredUsers[this.newPassword] = this.registeredUsers[this.loggedInUser.password]
+      delete this.registeredUsers[this.loggedInUser.password]
+      this.password = this.newPassword
+
+      alert('Success. Password changed successfully!')
+      this.resetPassForm()
+      this.showPasswordChangeForm = false
+    },
+    /**
+     * Change username of current user
+     */
+    updateUsername() {
+      if (this.currentPassword !== this.password) {
+        alert('Error. Current password is incorrect. Please try again.')
+        this.resetUserForm()
+        return
+      }
+
+      const regex = /\s/
+      if (regex.test(this.newUsername)) {
+        alert('Error. Invalid empty space.')
+        this.resetUserForm()
+        return
+      }
+
+      if (this.registeredUsers[this.newUsername]) {
+        alert('Error. Username already exists. Please choose a different one.')
+        this.resetUserForm()
+        return
+      }
+      this.registeredUsers[this.newUsername] = this.registeredUsers[this.loggedInUser.username]
+      delete this.registeredUsers[this.loggedInUser.username]
+      this.loggedInUser.username = this.newUsername
+
+      alert('Success. Username updated successfully!')
+      this.resetUserForm()
+      this.showUsernameUpdateForm = false
+    },
+    /**
+     * Empty the text input
+     */
+    resetForm() {
+      this.username = ''
+      this.password = ''
+    },
+    /**
+     * Reset the input form for registration
+     */
+    resetNewForm() {
+      this.newUsername = ''
+      this.newPassword = ''
+    },
+    /**
+     * Reset the input form for update username
+     */
+    resetUserForm() {
+      this.currentPassword = ''
+      this.newUsername = ''
+    },
+    /**
+     * Reset the input form for update password
+     */
+    resetPassForm() {
+      this.oldPassword = ''
+      this.newPassword = ''
+    },
+    /**
+     * Process the logout of current user
+     */
+    logout() {
+      this.isLoggedIn = false
+      this.loggedInUser = null
+      this.resetForm()
+      this.resetNewForm()
+      this.$router.push({ name: 'home' })
+    },
+    /**
+     * Delete the account of current user
+     */
+    deleteAccount() {
+      const deleteAcc = confirm('Delete your account?')
+      if (deleteAcc) {
+        delete this.registeredUsers[this.loggedInUser.username]
+        alert('Success. Account deleted successfully.')
+        this.logout()
+        this.$router.push({ name: 'home' })
+      }
+    }
+  }
+}
+</script>
