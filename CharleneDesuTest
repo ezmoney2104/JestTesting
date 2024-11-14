@@ -1,0 +1,805 @@
+<template>
+  <div>
+    <b-card class="p-4 m-4" v-for="label in mainLabel" :key="label.id">
+      <h1>{{ label.display.label }}</h1>
+      <b-card class="cardOne">
+        <b-row class="bv-example-row">
+          <h1 style="text-align: justify">
+            <img src="../../../assets/weight-loss.png" alt="" />
+            User #1
+          </h1>
+          <b-col v-for="(textOne, id) in inputOne" :key="id">
+            <component
+              :is="textOne.componentName"
+              :key="resetDataButton"
+              :input="textOne"
+              @addValue="gatherData($event, (keyIndex = 1))"
+            >
+            </component>
+          </b-col>
+        </b-row>
+        <b-row class="bv-example-row">
+          <h1 style="text-align: justify">
+            <img src="../../../assets/weight-loss.png" alt="" /> User #2
+          </h1>
+          <b-col v-for="(textTwo, id) in inputTwo" :key="id">
+            <component
+              :is="textTwo.componentName"
+              :key="resetDataButton"
+              :input="textTwo"
+              @addValue="gatherData($event, (keyIndex = 2))"
+            >
+            </component>
+          </b-col>
+        </b-row>
+        <b-row>
+          <b-col class="p-4" v-for="(buttonz, id) in buttonsComponents" :key="id">
+            <component
+              :is="buttonz.componentName"
+              :key="resetDataButton"
+              :input="buttonz"
+              @button-action="btnFunction(buttonz)"
+            ></component>
+          </b-col>
+        </b-row>
+      </b-card>
+      <b-card class="cardTwo" v-if="compareShow">
+        <b-alert v-model="compareShow" variant="secondary" dismissible @dismissied="showCompare">
+          {{ bmiAlert }}
+        </b-alert>
+        <div>
+          <b-card v-for="(result, id) in bmiData.bmiOne" :key="id">
+            {{ resultofBMI[id] }} {{ result }}
+          </b-card>
+          <b-card v-for="(result, id) in bmiData.bmiTwo" :key="id">
+            {{ resultofBMI[id] }} {{ result }}
+          </b-card>
+        </div>
+      </b-card>
+    </b-card>
+  </div>
+</template>
+ 
+<script>
+import { bmiTittle } from '@/common/recipe/rCommonLabel'
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import { bmiTextInputOne, bmiTextInputTwo } from '@/common/recipe/rCommonTextInput'
+import CommonButton from '@/components/common/CommonButton.vue'
+import { bmiButton } from '@/common/recipe/rCommonButton'
+import { bmiData } from '@/common/recipe/rBmi'
+import { bmiResult } from '@/common/recipe/rBmi'
+ 
+export default {
+  name: 'BmiBase',
+  components: { CommonTextInput, CommonButton },
+ 
+  data() {
+    return {
+      mainLabel: [...bmiTittle],
+      inputOne: [...bmiTextInputOne],
+      inputTwo: [...bmiTextInputTwo],
+      buttonsComponents: bmiButton,
+      resultofBMI: bmiResult,
+      bmiData: JSON.parse(JSON.stringify(bmiData)),
+      origBmiData: JSON.parse(JSON.stringify(bmiData)),
+      computation1: 0,
+      computation2: 0,
+      result: '',
+      compareShow: false,
+      isCompared: false,
+      isError: false,
+      showDismissibleAlert: false,
+      resetDataButton: 0
+    }
+  },
+ 
+  methods: {
+    /**
+     * To gather all the informtion that the user inputted.
+     * @param data - the data that the user inputted.
+     * @param keyIndex - it is the index of the data.
+     */
+    gatherData(data, keyIndex) {
+      if (keyIndex === 1) {
+        this.bmiData.bmiOne[data.key] = data.value
+      } else if (keyIndex === 2) {
+        this.bmiData.bmiTwo[data.key] = data.value
+      }
+      console.log(this.bmiData)
+    },
+ 
+    /**
+     * This is for the function of the buttons.
+     * @param btn - it for the event of the button
+     */
+    btnFunction(btn) {
+      if (btn.event.operation === 'clickReset') {
+        this.resetDataFunction()
+      } else if (btn.event.operation === 'clickCompute') {
+        this.validationForm()
+        if (!this.isError) {
+          this.computeBmiOne()
+          this.computeBmiTwo()
+        }
+      } else if (this.result === '') {
+        alert('Please input data to proceed')
+        return
+      } else if (btn.event.operation === 'clickCompare') {
+        this.isCompared = true
+        this.showDismissibleAlert = true
+        this.compareShow = true
+      } else if (this.result === '') {
+        return
+      }
+    },
+ 
+    /**
+     * this will make the show alert to close.
+     */
+    showCompare() {
+      this.compareShow = true
+    },
+ 
+    /**
+     * for the validation alert of the text input.
+     */
+    validationForm() {
+      const specChar = /[^\W]/
+ 
+      if (JSON.stringify(this.bmiData) == JSON.stringify(this.origBmiData)) {
+        alert('No inputs added please enter some information')
+      } else if (
+        !specChar.test(this.bmiData.bmiOne.name || !specChar.test(this.bmiData.bmiTwo.name))
+      ) {
+        this.isError = true
+        alert('Input invalid no special charactert')
+      }
+    },
+ 
+    /**
+     * This is the function for the text input of the user one.
+     */
+ 
+    computeBmiOne() {
+      if (this.gatherData) {
+        this.computation1 = (
+          this.bmiData.bmiOne.weight / Math.pow(this.bmiData.bmiOne.height / 100, 2)
+        ).toFixed(2)
+ 
+        if (this.computation1 < 18.5 && this.computation1 >= 0) {
+          this.result = 'Underweight'
+        } else if (this.computation1 >= 18.5 && this.computation1 < 24.9) {
+          this.result = 'Normal'
+        } else if (this.computation1 >= 24.9 && this.computation1 < 29.9) {
+          this.result = 'Overweight'
+        } else if (this.computation1 >= 29.9) {
+          this.result = 'Obesity'
+        }
+      }
+      if (this.result === '') {
+        return
+      }
+      console.log('First BMI', this.result)
+      this.bmiData.bmiOne.classifaction = this.result
+    },
+ 
+    /**
+     * this is the function for the text input of the user 2
+     */
+    computeBmiTwo() {
+      if (this.gatherData) {
+        this.computation2 = (
+          this.bmiData.bmiTwo.weight / Math.pow(this.bmiData.bmiTwo.height / 100, 2)
+        ).toFixed(2)
+ 
+        if (this.computation2 < 18.5 && this.computation2 >= 0) {
+          this.result = 'Underweight'
+        } else if (this.computation2 >= 18.5 && this.computation2 < 24.9) {
+          this.result = 'Normal'
+        } else if (this.computation2 >= 24.9 && this.computation2 < 29.9) {
+          this.result = 'Overweight'
+        } else if (this.computation2 >= 29.9) {
+          this.result = 'Obesity'
+        }
+      }
+      if (this.result === '') {
+        return
+      }
+      console.log('Second BMi', this.result)
+      this.bmiData.bmiTwo.classifaction = this.result
+    },
+ 
+    /**
+     * this is the function to see whos bmi`s is better
+     */
+    bmiShow() {
+      if (this.computation1 == this.computation2) {
+        return `${this.bmiData.bmiOne.name} is equal to BMI: ${this.bmiData.bmiTwo.name}`
+      } else if (this.computation1 > this.computation2) {
+        return `${this.bmiData.bmiOne.name} has greater BMI: ${this.computation1}`
+      } else if (this.computation2 < this.computation1) {
+        return `${this.bmiData.bmiTwo.name} has greater BMI: ${this.computation2}`
+      }
+    },
+ 
+    /**
+     * This function makes the text input empty it deletes the current inputted data
+     */
+ 
+    resetDataFunction() {
+      this.bmiData = {
+        bmiOne: {
+          name: '',
+          weight: '',
+          height: '',
+          classifaction: ''
+        },
+        bmiTwo: {
+          name: '',
+          weight: '',
+          height: '',
+          classifaction: ''
+        }
+      }
+      this.compareShow = false
+      this.resetDataButton += 1
+    }
+  },
+ 
+  computed: {
+    /**
+     * this is the function to see whos bmi`s better.
+     */
+    bmiAlert() {
+      if (this.computation1 == this.computation2) {
+        return `${this.bmiData.bmiOne.name} is equal to BMI: ${this.bmiData.bmiTwo.name}`
+      } else if (this.computation1 > this.computation2) {
+        return `${this.bmiData.bmiOne.name} has greater BMI: ${this.computation1}`
+      } else if (this.computation1 < this.computation2) {
+        return `${this.bmiData.bmiTwo.name} has greater BMI: ${this.computation2}`
+      }
+    }
+  }
+}
+</script>
+ 
+<style scoped>
+.cardOne {
+  width: 70%;
+  margin-left: 15%;
+}
+ 
+.cardTwo {
+  margin-top: 25px;
+  width: 50%;
+  margin-left: 25%;
+}
+h1 img {
+  width: 55px;
+}
+ 
+.cardOne {
+  background: rgb(221, 184, 146);
+  background: radial-gradient(circle, rgba(221, 184, 146, 1) 0%, rgba(176, 137, 104, 1) 100%);
+  box-shadow:
+    rgba(6, 24, 44, 0.4) 0px 0px 0px 2px,
+    rgba(6, 24, 44, 0.65) 0px 4px 6px -1px,
+    rgba(255, 255, 255, 0.08) 0px 1px 0px inset;
+}
+ 
+.displayBmi {
+  background: rgb(221, 184, 146);
+  background: radial-gradient(circle, rgba(221, 184, 146, 1) 0%, rgba(176, 137, 104, 1) 100%);
+  border: none;
+}
+</style>
+ 
+ 
+ 
+ 
+<template>
+  <div>
+    <b-card>
+      <b-card class="main-card" v-for="title in todolistTitle" :key="title.id">
+        <div>
+          <h3>
+            <img src="../../../assets/todo_icon.png" alt="" />
+            {{ title.display.label }}
+          </h3>
+        </div>
+        <b-card class="mt-3" size="lg">
+          <b-input-group>
+            <b-form v-for="(textInput, id) in todolisttextInput" :key="id" class="text-input">
+              <component
+                :is="textInput.componentName"
+                :input="textInput"
+                :key="resetValue"
+                @addValue="gatherData"
+              ></component>
+            </b-form>
+            <b-input-group-append>
+              <b-row>
+                <b-col v-for="(addButton, id) in todolistAddButton" :key="id" class="add-button">
+                  <component
+                    :is="addButton.componentName"
+                    :key="componentKey"
+                    :input="addButton"
+                    @button-action="buttonFunction($event)"
+                  >
+                  </component>
+                </b-col>
+              </b-row>
+            </b-input-group-append>
+          </b-input-group>
+        </b-card>
+        <div class="second-buttons">
+          <b-row>
+            <b-col>
+              <b-button v-b-modal.modal-1 class="w-100" variant="success">FAQS</b-button>
+              <b-modal id="modal-1" title="THE FORGOTTEN" ok-only>
+                <div v-for="information in modalInformation" :key="information.id">
+                  <h6>
+                    <strong>{{ information.title }}</strong>
+                    <p>{{ information.description }}</p>
+                  </h6>
+                </div>
+              </b-modal>
+            </b-col>
+            <b-col v-for="(allButtons, id) in todolistAllButtons" :key="id">
+              <component
+                :is="allButtons.componentName"
+                :key="componentKey"
+                :input="allButtons"
+                @button-action="buttonFunction($event)"
+              ></component>
+            </b-col>
+          </b-row>
+        </div>
+        <b-list-group class="d-flex justify-content-center mb-3">
+          <h2 class="m-4" flex>{{ todolistCurrent.display.label }}</h2>
+          <b-list-group-item v-for="(task, taskID) in addedTask" :key="taskID">
+            <span class="taskName-style" :style="taskDone(task)">{{ task.taskName }}</span>
+            <b-row>
+              <b-col v-for="(deleteAdded, id) in addedDeletebtn" :key="id" class="buttonsCurrent">
+                <component
+                  :is="deleteAdded.componentName"
+                  :input="deleteAdded"
+                  :key="componentKey"
+                  @button-action="buttonFunction($event, task, taskID)"
+                >
+                </component>
+              </b-col>
+            </b-row>
+          </b-list-group-item>
+        </b-list-group>
+      </b-card>
+    </b-card>
+  </div>
+</template>
+ 
+<script>
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import CommonButton from '@/components/common/CommonButton.vue'
+import { TODOLISTALLBUTTONS, TODOLISTADD, ADDEDLISTDDELETE } from '@/common/recipe/rCommonButton'
+import { TODOLISTTEXTINPUT } from '@/common/recipe/rCommonTextInput'
+import { TODOLISTTITLE, CURRENTTASK } from '@/common/recipe/rCommonLabel'
+import { MODALINFO } from '@/common/recipe/rRegistrationForm'
+ 
+export default {
+  name: 'Todolist',
+  components: { CommonTextInput, CommonButton },
+ 
+  data() {
+    return {
+      modalInformation: [...MODALINFO],
+      todolistTitle: TODOLISTTITLE,
+      todolisttextInput: TODOLISTTEXTINPUT,
+      todolistAddButton: TODOLISTADD,
+      todolistAllButtons: TODOLISTALLBUTTONS,
+      todolistCurrent: CURRENTTASK,
+      addedDeletebtn: ADDEDLISTDDELETE,
+      todoAdd: '',
+      addedTask: [],
+      resetValue: 0
+    }
+  },
+  computed: {},
+  methods: {
+    /**
+     * This is the function for the style binding.
+     * @param task - it is the added task from the add button.
+     */
+    taskDone(task) {
+      return {
+        textDecoration: task.isDone ? 'line-through' : 'none',
+        color: task.isDone ? 'black' : 'none'
+      }
+    },
+    /**
+     * this is teh function where the data will be collected in the text input.
+     * @param data - is the data that the user inputted.
+     */
+    gatherData(data) {
+      if (data.value.trim() === '') {
+        alert('Please enter to do')
+ 
+        return
+      }
+      this.todoAdd = data.value
+      this.resetValue += 1
+    },
+ 
+    /**
+     * This is the function for the add button
+     */
+    addData() {
+      if (this.todoAdd === '') {
+        alert('Please enter to do list')
+      } else {
+        this.addedTask.push({ taskName: this.todoAdd, isDone: false })
+        this.todoAdd = ''
+      }
+    },
+ 
+    /**
+     * this function will delete all the task in the current tasks card.
+     */
+    deleteAllFunc() {
+      this.addedTask = []
+    },
+ 
+    /**
+     * This is the functions for trhe add, clear completed, clear all, done and remove.
+     * @param btn - this is the event or the action of the buttons
+     * @param arr - this is the array for the tasks that are inputted.
+     * @param taskId - this is the Id for the task added
+     */
+    buttonFunction(btn, arr, taskID) {
+      if (btn === 'clickClear') {
+        const clearVal = confirm('Are you sure you wanted to delete all your to do list?')
+        if (!clearVal) return
+        this.deleteAllFunc()
+      } else if (btn === 'clickDelete') {
+        this.removeCurrentTask(taskID)
+      } else if (btn === 'clickAddList') {
+        this.addData()
+      } else if (btn === 'clickDone') {
+        this.addedTask[taskID].isDone = !this.addedTask[taskID].isDone
+      } else if (btn === 'clickClearCompleted') {
+        const clearComp = confirm(
+          'Are you sure you wanted to delete all your completed to do list?'
+        )
+ 
+        if (!clearComp) return
+        this.clearCompleted(arr)
+      }
+    },
+ 
+    /**
+     * this is the function for the completed task to be deleted.
+     */
+    clearCompleted() {
+      this.addedTask = this.addedTask.filter((data) => !data.isDone)
+    },
+ 
+    /**
+     * This function is for delete the added task in the current tasks.
+     * @param data - the task that will be added by the users.
+     */
+    removeCurrentTask(data) {
+      const delAddedTask = confirm('Are you sure you wanted to delete your to do list?')
+      if (delAddedTask) {
+        this.addedTask.splice(data, 1)
+      }
+    }
+  }
+}
+</script>
+ 
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Londrina+Sketch&display=swap');
+ 
+.main-card {
+  margin-top: 40px;
+  margin-left: 15%;
+  margin-bottom: 17%;
+  width: 70%;
+  box-shadow:
+    rgba(6, 24, 44, 0.4) 0px 0px 0px 2px,
+    rgba(6, 24, 44, 0.65) 0px 4px 6px -1px,
+    rgba(255, 255, 255, 0.08) 0px 1px 0px inset;
+}
+ 
+h3 {
+  font-family: 'Londrina Sketch', sans-serif;
+  font-weight: 800;
+  font-style: normal;
+  word-wrap: break-word;
+  font-size: 75px;
+}
+ 
+h3 img {
+  width: 85px;
+}
+ 
+.second-buttons {
+  margin-top: 25px;
+  word-wrap: break-word;
+}
+ 
+.buttonsCurrent {
+  width: 100%;
+  margin-top: 4px;
+  float: left;
+}
+ 
+.taskName-style {
+  color: black;
+}
+ 
+.text-input {
+  width: 90%;
+}
+.add-button {
+  margin-left: 15px;
+  width: auto;
+}
+</style>
+ 
+ 
+ 
+ 
+ 
+<template>
+  <div>
+    <b-card>
+      <b-card class="main-card" v-for="title in todolistTitle" :key="title.id">
+        <div>
+          <h3>
+            <img src="../../../assets/todo_icon.png" alt="" />
+            {{ title.display.label }}
+          </h3>
+        </div>
+        <b-card class="mt-3" size="lg">
+          <b-input-group>
+            <b-form v-for="(textInput, id) in todolisttextInput" :key="id" class="text-input">
+              <component
+                :is="textInput.componentName"
+                :input="textInput"
+                :key="resetValue"
+                @addValue="gatherData"
+              ></component>
+            </b-form>
+            <b-input-group-append>
+              <b-row>
+                <b-col v-for="(addButton, id) in todolistAddButton" :key="id" class="add-button">
+                  <component
+                    :is="addButton.componentName"
+                    :key="componentKey"
+                    :input="addButton"
+                    @button-action="buttonFunction($event)"
+                  >
+                  </component>
+                </b-col>
+              </b-row>
+            </b-input-group-append>
+          </b-input-group>
+        </b-card>
+        <div class="second-buttons">
+          <b-row>
+            <b-col>
+              <b-button v-b-modal.modal-1 class="w-100" variant="success">FAQS</b-button>
+              <b-modal id="modal-1" title="THE FORGOTTEN" ok-only>
+                <div v-for="information in modalInformation" :key="information.id">
+                  <h6>
+                    <strong>{{ information.title }}</strong>
+                    <p>{{ information.description }}</p>
+                  </h6>
+                </div>
+              </b-modal>
+            </b-col>
+            <b-col v-for="(allButtons, id) in todolistAllButtons" :key="id">
+              <component
+                :is="allButtons.componentName"
+                :key="componentKey"
+                :input="allButtons"
+                @button-action="buttonFunction($event)"
+              ></component>
+            </b-col>
+          </b-row>
+        </div>
+        <b-list-group class="d-flex justify-content-center mb-3">
+          <h2 class="m-4" flex>{{ todolistCurrent.display.label }}</h2>
+          <b-list-group-item v-for="(task, taskID) in addedTask" :key="taskID">
+            <span class="taskName-style" :style="taskDone(task)">{{ task.taskName }}</span>
+            <b-row>
+              <b-col v-for="(deleteAdded, id) in addedDeletebtn" :key="id" class="buttonsCurrent">
+                <component
+                  :is="deleteAdded.componentName"
+                  :input="deleteAdded"
+                  :key="componentKey"
+                  @button-action="buttonFunction($event, task, taskID)"
+                >
+                </component>
+              </b-col>
+            </b-row>
+          </b-list-group-item>
+        </b-list-group>
+      </b-card>
+    </b-card>
+  </div>
+</template>
+ 
+<script>
+import CommonTextInput from '@/components/common/CommonTextInput.vue'
+import CommonButton from '@/components/common/CommonButton.vue'
+import { TODOLISTALLBUTTONS, TODOLISTADD, ADDEDLISTDDELETE } from '@/common/recipe/rCommonButton'
+import { TODOLISTTEXTINPUT } from '@/common/recipe/rCommonTextInput'
+import { TODOLISTTITLE, CURRENTTASK } from '@/common/recipe/rCommonLabel'
+import { MODALINFO } from '@/common/recipe/rRegistrationForm'
+ 
+export default {
+  name: 'Todolist',
+  components: { CommonTextInput, CommonButton },
+ 
+  data() {
+    return {
+      modalInformation: [...MODALINFO],
+      todolistTitle: TODOLISTTITLE,
+      todolisttextInput: TODOLISTTEXTINPUT,
+      todolistAddButton: TODOLISTADD,
+      todolistAllButtons: TODOLISTALLBUTTONS,
+      todolistCurrent: CURRENTTASK,
+      addedDeletebtn: ADDEDLISTDDELETE,
+      todoAdd: '',
+      addedTask: [],
+      resetValue: 0
+    }
+  },
+  computed: {},
+  methods: {
+    /**
+     * This is the function for the style binding.
+     * @param task - it is the added task from the add button.
+     */
+    taskDone(task) {
+      return {
+        textDecoration: task.isDone ? 'line-through' : 'none',
+        color: task.isDone ? 'black' : 'none'
+      }
+    },
+    /**
+     * this is teh function where the data will be collected in the text input.
+     * @param data - is the data that the user inputted.
+     */
+    gatherData(data) {
+      if (data.value.trim() === '') {
+        alert('Please enter to do')
+ 
+        return
+      }
+      this.todoAdd = data.value
+      this.resetValue += 1
+    },
+ 
+    /**
+     * This is the function for the add button
+     */
+    addData() {
+      if (this.todoAdd === '') {
+        alert('Please enter to do list')
+      } else {
+        this.addedTask.push({ taskName: this.todoAdd, isDone: false })
+        this.todoAdd = ''
+      }
+    },
+ 
+    /**
+     * this function will delete all the task in the current tasks card.
+     */
+    deleteAllFunc() {
+      this.addedTask = []
+    },
+ 
+    /**
+     * This is the functions for trhe add, clear completed, clear all, done and remove.
+     * @param btn - this is the event or the action of the buttons
+     * @param arr - this is the array for the tasks that are inputted.
+     * @param taskId - this is the Id for the task added
+     */
+    buttonFunction(btn, arr, taskID) {
+      if (btn === 'clickClear') {
+        const clearVal = confirm('Are you sure you wanted to delete all your to do list?')
+        if (!clearVal) return
+        this.deleteAllFunc()
+      } else if (btn === 'clickDelete') {
+        this.removeCurrentTask(taskID)
+      } else if (btn === 'clickAddList') {
+        this.addData()
+      } else if (btn === 'clickDone') {
+        this.addedTask[taskID].isDone = !this.addedTask[taskID].isDone
+      } else if (btn === 'clickClearCompleted') {
+        const clearComp = confirm(
+          'Are you sure you wanted to delete all your completed to do list?'
+        )
+ 
+        if (!clearComp) return
+        this.clearCompleted(arr)
+      }
+    },
+ 
+    /**
+     * this is the function for the completed task to be deleted.
+     */
+    clearCompleted() {
+      this.addedTask = this.addedTask.filter((data) => !data.isDone)
+    },
+ 
+    /**
+     * This function is for delete the added task in the current tasks.
+     * @param data - the task that will be added by the users.
+     */
+    removeCurrentTask(data) {
+      const delAddedTask = confirm('Are you sure you wanted to delete your to do list?')
+      if (delAddedTask) {
+        this.addedTask.splice(data, 1)
+      }
+    }
+  }
+}
+</script>
+ 
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Londrina+Sketch&display=swap');
+ 
+.main-card {
+  margin-top: 40px;
+  margin-left: 15%;
+  margin-bottom: 17%;
+  width: 70%;
+  box-shadow:
+    rgba(6, 24, 44, 0.4) 0px 0px 0px 2px,
+    rgba(6, 24, 44, 0.65) 0px 4px 6px -1px,
+    rgba(255, 255, 255, 0.08) 0px 1px 0px inset;
+}
+ 
+h3 {
+  font-family: 'Londrina Sketch', sans-serif;
+  font-weight: 800;
+  font-style: normal;
+  word-wrap: break-word;
+  font-size: 75px;
+}
+ 
+h3 img {
+  width: 85px;
+}
+ 
+.second-buttons {
+  margin-top: 25px;
+  word-wrap: break-word;
+}
+ 
+.buttonsCurrent {
+  width: 100%;
+  margin-top: 4px;
+  float: left;
+}
+ 
+.taskName-style {
+  color: black;
+}
+ 
+.text-input {
+  width: 90%;
+}
+.add-button {
+  margin-left: 15px;
+  width: auto;
+}
+</style>
+ 
+ 
+ 
+ 
+ 
