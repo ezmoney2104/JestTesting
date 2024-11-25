@@ -1,0 +1,375 @@
+??? api_puppy
+from flask import Blueprint, request
+from src.setup_db_example.database import db
+import traceback
+
+# Import db
+from src.setup_db_example.models.m_puppy import PuppyDb
+from src.setup_db_example.schemas.s_puppy import PuppySchema
+
+# Add routing
+puppy_db_router = Blueprint("a_puppy", __name__)
+
+
+# Add routing name for api method
+@puppy_db_router.route("/api/get-puppy", methods=["GET"])
+def sample_read():
+
+    return {
+        "message": "sample",
+    }
+
+
+# Registration of Puppy
+@puppy_db_router.route("/api/register-puppy", methods=["POST"])
+def post():
+    req = request.json["params"]
+    try:
+        name = req["puppyName"]
+        breed = req["breed"]
+        birthdate = req["birthdate"]
+        price = req["price"]
+        marking = req["marking"]
+
+        from pprint import pprint
+
+        pprint(req)
+
+        new_puppy = PuppyDb(
+            puppy_name=name,
+            puppy_breed=breed,
+            puppy_birthdate=birthdate,
+            puppy_price=price,
+            puppy_marking=marking,
+        )
+        db.session.add(new_puppy)
+        db.session.commit()
+        return {
+            "success": True,
+            "message_response": "PUPPY ADDED SUCCESSFULLY",
+            "message_content": "Puppy Added",
+        }
+    except Exception as e:
+        print(traceback.format_exc())
+        print(e)
+        return {
+            "success": False,
+            "message_response": "PUPPY ADD FAILED",
+            "message_content": "Adding Failed",
+        }
+
+
+# Display of Puppy
+@puppy_db_router.route("/api/display-puppy", methods=["GET"])
+def get():
+    try:
+        query = PuppyDb.query.all()
+        puppy_item = PuppySchema(many=True).dump(query)
+
+        print(puppy_item)
+        return {
+            "success": True,
+            "data": puppy_item,
+            "message_response": "PUPPY GET SUCCESS",
+            "message_content": "Get Success",
+        }, 200
+    except Exception:
+        pass
+
+
+# Delete Puppy
+@puppy_db_router.route("/api/delete-puppy/<int:puppy_id>", methods=["DELETE"])
+def delete(puppy_id):
+    try:
+        print("puppy id: ", puppy_id)
+        if PuppyDb.query.filter(PuppyDb.puppy_id == str(puppy_id)).delete():
+            db.session.commit()
+
+            return {
+                "success": True,
+                "message_response": "Puppy deleted successfully",
+                "data": None,
+            }, 200
+
+    except Exception as e:
+        print(traceback.format_exc())
+
+        return {
+            "success": False,
+            "message_response": f"Failed deleting the Puppy with id {puppy_id}",
+            "data": None,
+        }, 500
+
+
+
+???model_puppy
+from src.setup_db_example.database import db
+
+
+class PuppyDb(db.Model):
+    __tablename__ = "puppy_db_tbl"
+
+    puppy_id = db.Column(db.Integer, primary_key=True)
+    puppy_name = db.Column(db.String(64), nullable=False)
+    puppy_breed = db.Column(db.String(64), nullable=False)
+    puppy_birthdate = db.Column(db.Date, nullable=False)
+    puppy_price = db.Column(db.Float(5), nullable=False)
+    puppy_marking = db.Column(db.String(128), nullable=False)
+
+    puppy_adopt = db.relationship("AdoptRecordDb", back_populates="puppy")
+
+???registration
+<template>
+  <div>
+    <div class="puppy-registration">
+      <h2>Puppy Registration Form</h2>
+      <!-- <toast
+      v-if="showToast"
+      title="Warning"
+      variant="danger"
+      @dismissed="showToast = false"
+      no-close-button
+      auto-hide-delay="3000"
+    >
+      KINDLY fill out all fields before submitting the form.
+    </toast> -->
+      <form @submit.prevent="registerPuppy">
+        <div class="form-group">
+          <label for="puppyName">Puppy Name:</label>
+          <input
+            v-model="puppyForm.puppyName"
+            type="text"
+            id="puppyName"
+            placeholder="Enter puppy name"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="birthdate">Birthdate:</label>
+          <input v-model="puppyForm.birthdate" type="date" id="birthdate" />
+        </div>
+
+        <div class="form-group">
+          <label for="breed">Breed:</label>
+          <input v-model="puppyForm.breed" type="text" id="breed" placeholder="Enter breed" />
+        </div>
+
+        <div class="form-group">
+          <label for="price">Price ($):</label>
+          <input v-model="puppyForm.price" type="number" id="price" placeholder="Enter price" />
+        </div>
+
+        <div class="form-group">
+          <label for="marking">Marking:</label>
+          <input
+            v-model="puppyForm.marking"
+            type="text"
+            id="marking"
+            placeholder="Enter markings"
+          />
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Post</button>
+          <button type="button" class="btn btn-cancel" @click="cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <b-button @click="displayPuppy">Display Puppy</b-button>
+    <b-container>
+      <b-table striped hover :items="puppy_item" :fields="fields">
+        <template #cell(action)="data">
+          <b-button-group>
+            <b-button>Adopt</b-button>
+            <b-button @click="deletePuppy(data.item)">Delete</b-button>
+          </b-button-group>
+        </template>
+      </b-table>
+    </b-container>
+  </div>
+</template>
+
+<script>
+import { FetchAPI } from '@/components/utility/apiRequest'
+export default {
+  name: 'PuppyRegister',
+  data() {
+    return {
+      puppyForm: {
+        puppyName: '',
+        birthdate: '',
+        breed: '',
+        price: 0,
+        marking: '',
+        showToast: false
+      },
+      fields: [
+        { key: 'puppy_id', label: 'ID' },
+        { key: 'puppy_name', label: 'Puppy Name' },
+        { key: 'puppy_birthdate', label: 'Birthdate' },
+        { key: 'puppy_breed', label: 'Breed' },
+        { key: 'puppy_price', label: 'Price' },
+        { key: 'puppy_marking', label: 'Marking' },
+        { key: 'action', label: 'buttons' }
+      ],
+      puppy_item: [],
+      AdoptPuppy: null
+    }
+  },
+  mounted() {
+    // alert(`
+    // May kasalanan ka Mika.
+    // hindi ka nag restart tapos walang v-model ung mga html tags mo HAHAHAHAHAHAHAHA
+    // - Lorenzo
+    // `)
+  },
+  methods: {
+    /**
+     * calls api to save puppy data into database
+     */
+    async registerPuppy() {
+      try {
+        const response = await new FetchAPI().post('/api/register-puppy', this.puppyForm)
+        // console.log(response)
+        alert('Puppy added successfully')
+      } catch (error) {
+        console.error(error)
+        alert('Puppy added failed')
+      }
+    },
+    /**
+     * function to clear and cancel registration
+     */
+    cancel() {
+      this.resetForm()
+      console.log('Registration canceled.')
+    },
+    /**
+     * called by cancel function
+     */
+    resetForm() {
+      this.puppyForm.puppyName = ''
+      this.puppyForm.birthdate = ''
+      this.puppyForm.breed = ''
+      this.puppyForm.price = null
+      this.puppyForm.marking = ''
+      this.puppyForm.showToast = false
+    },
+    /**
+     * function to dsiplay puppy data
+     */
+    async displayPuppy() {
+      try {
+        const api = new FetchAPI()
+        const response = await api.get('/api/display-puppy')
+        if (response.success) {
+          this.puppy_item = [...response.data]
+          console.log(this.puppy_item)
+        } else {
+          alert('Puppy display failed')
+        }
+      } catch (error) {
+        console.error(error)
+        alert('Error in displaying puppy data')
+      }
+    },
+    /**
+     * function to dsiplay puppy data
+     */
+    async deletePuppy(puppy) {
+      console.log('hello', puppy)
+      try {
+        const api = new FetchAPI()
+        const response = await api.delete(`/api/delete-puppy/${puppy.puppy_id}`)
+
+        this.displayPuppy()
+      } catch (error) {
+        console.error(error)
+        alert('Error in deleting puppy data')
+      }
+    }
+  }
+}
+</script>
+
+<style scoped>
+.puppy-registration {
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  text-align: center;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+}
+
+input[type='text'],
+input[type='date'],
+input[type='number'] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.3s;
+}
+
+input[type='text']:focus,
+input[type='date']:focus,
+input[type='number']:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+}
+
+.btn-cancel {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-cancel:hover {
+  background-color: #c82333;
+}
+</style>
+
+
+
